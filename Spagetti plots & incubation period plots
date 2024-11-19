@@ -1,0 +1,13 @@
+# Incubation period first
+threshold <- 50661
+alpha <- 0.089
+beta <- 1.088
+lambda <- 0.041
+G <- 62.792
+theta <- 32.072
+eta <- 108.955
+kappa <- sqrt((lambda-alpha-beta)^2+4*alpha*lambda*G)
+x1 <- 0.5*(-lambda-alpha-beta+kappa)
+
+t_ODE <- eta-log(1)/x1
+
