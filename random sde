@@ -93,3 +93,18 @@ print(length(times2))
 break}
 }
 }
+
+
+
+# Mean
+model <- function(t,y,parms){
+dy1 <- -(a+b)*y[1]+h*G*y[2]
+dy2 <- a*y[1]-h*y[2]
+list(c(dy1,dy2))
+}
+yini <- c(y1=1,y2=0)
+times <- seq(from=0,to=150,by=0.01)
+out1 <- ode(times=times,y=yini,func=model,parms=NULL)
+total_pop_mean <- out1[,2]+out1[,3]
+
+
