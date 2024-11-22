@@ -1,0 +1,95 @@
+# Simulate feller simplified (allen only)
+
+times10 <- c()
+
+while (length(times10)<10000){
+
+t <- seq(0,300,by=0.1)
+l <- rep(0,length(t))
+m <- rep(0,length(t))
+l[1] <- 33.35577
+m[1] <- 7.00475
+noise1 <- rnorm(n=length(t),mean=0,sd=sqrt(0.1))
+noise2 <- rnorm(n=length(t),mean=0,sd=sqrt(0.1))
+
+for (i in 2:length(t)){
+
+# allen method
+
+A <- ((a+b)*l[i-1]+h*(G+(1/r+1)*G^2)*m[i-1])*(a*l[i-1]+h*m[i-1])-(a*l[i-1]+h*G*m[i-1])^2
+B <- sqrt(A)
+C <- (2*a+b)*l[i-1]+h*(G+(1/r+1)*G^2+1)*m[i-1]
+D <- sqrt(C+2*B)
+
+l[i] <- l[i-1] - 0.1*(a+b)*l[i-1] + 0.1*h*G*m[i-1] + ((a+b)*l[i-1]+h*(G+(1/r+1)*G^2)*m[i-1]+B)*noise1[i]/D - (a*l[i-1]+h*G*m[i-1])*noise2[i]/D
+m[i] <- m[i-1] + 0.1*a*l[i-1] - 0.1*h*m[i-1] - (a*l[i-1]+h*G*m[i-1])*noise1[i]/D + (a*l[i-1]+h*m[i-1]+B)*noise2[i]/D
+
+
+if (is.na(l[i])){
+l[i] <- 0}
+
+if (is.na(m[i])){
+m[i] <- 0}
+
+if (l[i]<0){
+l[i] <- 0}
+
+if (m[i]<0){
+m[i] <- 0}
+
+
+if (l[i]>181.9034 && m[i]>38.19993){
+times10 <- append(times10,t[i])
+print(length(times10))
+break}
+}
+}
+
+times20 <- c()
+
+for (i in 1:10000){
+times20 <- append(times20,times10[i]+sample(size=1,FPT1))}
+lines(density(times20,from=0,to=350),col="orange",lwd=2)
+
+
+
+
+#################################################
+# NB Jump SDE
+
+# tau leap simulation for Jump process
+
+times2 <- c()
+
+while (length(times2)<10000){
+
+dt <- 0.1
+t <- seq(0,300,by=dt)
+l <- rep(0,length(t))
+m <- rep(0,length(t))
+l[1] <- 1
+
+for (i in 2:3001){
+
+e1 <- rpois(n=1,lambda=dt*b*l[i-1])
+e2 <- rpois(n=1,lambda=dt*a*l[i-1])
+e3 <- rpois(n=1,lambda=dt*h*m[i-1])
+if (e3==0){
+e4 <- 0}
+else {
+e4 <- rnbinom(n=e3,mu=61.39,size=29.52)}
+
+l[i] <- l[i-1] - (e1+e2) + e4
+m[i] <- m[i-1] + e2 - e3
+
+if (l[i]<0){
+l[i] <- 0}
+if (m[i]<0){
+m[i] <- 0}
+
+if (l[i]>181.9034 && m[i]>38.19993){
+times2 <- append(times2,t[i])
+print(length(times2))
+break}
+}
+}
