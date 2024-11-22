@@ -3,11 +3,68 @@ threshold <- 50661
 alpha <- 0.089
 beta <- 1.088
 lambda <- 0.041
-G <- 62.792
+G_nb <- 62.792
+G_av <- 62.326
 theta <- 32.072
 eta <- 108.955
-kappa <- sqrt((lambda-alpha-beta)^2+4*alpha*lambda*G)
+kappa <- sqrt((lambda-alpha-beta)^2+4*alpha*lambda*G_av)
 x1 <- 0.5*(-lambda-alpha-beta+kappa)
 
-t_ODE <- eta-log(1)/x1
+# Mean growth
+model <- function(t,y,parms){
+dy1 <- -(alpha+beta)*y[1]+lambda*G_av*y[2]
+dy2 <- alpha*y[1]-lambda*y[2]
+list(c(dy1,dy2))
+}
+yini <- c(y1=1,y2=0)
+times <- seq(from=0,to=150,by=0.01)
+out1 <- deSolve::ode(times=times,y=yini,func=model,parms=NULL)
+t_ODE <- out1[length(which(out1[,2]<threshold)),1]
+
+symptom_times <- read.csv("Results.NegBin.csv")[,2:3]
+t_Gill <- symptom_times[which(symptom_times[,1]==1),2]
+
+symptom_pop <- c(out1[length(which(out1[,2]<threshold)),2],out1[length(which(out1[,2]<threshold)),3])
+# Simulate feller simplified (allen only)
+t_SDE <- c()
+while (length(t_SDE)<10000){
+t <- seq(0,300,by=0.1)
+l <- rep(0,length(t))
+m <- rep(0,length(t))
+l[1] <- 1
+m[1] <- 0
+noise1 <- rnorm(n=length(t),mean=0,sd=sqrt(0.1))
+noise2 <- rnorm(n=length(t),mean=0,sd=sqrt(0.1))
+
+for (i in 2:length(t)){
+# allen method
+a <- alpha
+b <- beta
+h <- lambda
+G <- G_av
+r <- theta
+A <- ((a+b)*l[i-1]+h*(G+(1/r+1)*G^2)*m[i-1])*(a*l[i-1]+h*m[i-1])-(a*l[i-1]+h*G*m[i-1])^2
+B <- sqrt(A)
+C <- (2*a+b)*l[i-1]+h*(G+(1/r+1)*G^2+1)*m[i-1]
+D <- sqrt(C+2*B)
+
+l[i] <- l[i-1] - 0.1*(a+b)*l[i-1] + 0.1*h*G*m[i-1] + ((a+b)*l[i-1]+h*(G+(1/r+1)*G^2)*m[i-1]+B)*noise1[i]/D - (a*l[i-1]+h*G*m[i-1])*noise2[i]/D
+m[i] <- m[i-1] + 0.1*a*l[i-1] - 0.1*h*m[i-1] - (a*l[i-1]+h*G*m[i-1])*noise1[i]/D + (a*l[i-1]+h*m[i-1]+B)*noise2[i]/D
+
+if (is.na(l[i])){
+l[i] <- 0}
+if (is.na(m[i])){
+m[i] <- 0}
+if (l[i]<0){
+l[i] <- 0}
+if (m[i]<0){
+m[i] <- 0}
+
+if (l[i]>symptom_pop[1] && m[i]>symptom_pop[2]){
+t_SDE <- append(t_SDE,t[i])
+print(length(t_SDE))
+break}
+}
+}
+
 
