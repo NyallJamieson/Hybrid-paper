@@ -20,3 +20,22 @@ yini <- c(y1=0,y2=0)
 times <- seq(from=0,to=150,by=0.01)
 out1 <- deSolve::ode(times=times,y=yini,func=model,parms=NULL)
 plot(out1[,1],out1[,2],type="l",col="red",xlim=c(0,20),lwd=2,xlab="Time in Hours",ylab=expression(q),main="Extinction Probability of MTBP starting with 1 Legionella",ylim=c(0,1))
+
+###
+
+eps <- seq(0.00001,0.1,by=0.00001)
+TIMES <- c()
+
+for (i in 1:length(eps)){
+print(i)
+TIMES <- append(TIMES,out1[length(which(out1[,2]<out1[15001,2]-eps[i])),1])}
+
+dis <- c()
+for (i in 1:length(eps)){
+dis <- append(dis,TIMES[1]+grad*eps[i]-TIMES[i])}
+t <- which(dis==max(dis))
+plot(eps,TIMES,col="red",lwd=2,type="l",xlab=expression(epsilon[3]),ylab=expression(T[3]),main="Threshold Time for Extinction Condition")
+grad <- (TIMES[length(TIMES)]-TIMES[1])/(eps[length(eps)]-eps[1])
+lines(c(eps[1],eps[length(eps)]),c(TIMES[1],TIMES[length(TIMES)]),type="l",lty=2)
+lines(seq(0,2*eps[t],by=0.00000001),TIMES[t]-grad*(eps[t]-seq(0,2*eps[t],by=0.00000001)),lty=2)
+symbols(eps[t],TIMES[t],circles=1,add=TRUE,inches=0.1)
