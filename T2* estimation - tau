@@ -26,7 +26,8 @@ M2 <- out1[length(which(times<=50.04)),3]
 # tau leap simulation for Jump process
 times2 <- c()
 
-while (length(times2)<10000){
+while (length(times2)<100){
+
 dt <- 0.1
 t <- seq(0,300,by=dt)
 l <- rep(0,length(t))
@@ -34,13 +35,14 @@ m <- rep(0,length(t))
 l[1] <- 1
 
 for (i in 2:3001){
+
 e1 <- rpois(n=1,lambda=dt*b*l[i-1])
 e2 <- rpois(n=1,lambda=dt*a*l[i-1])
 e3 <- rpois(n=1,lambda=dt*h*m[i-1])
 if (e3==0){
 e4 <- 0}
 else {
-e4 <- sum(rnbinom(n=e3,mu=m,size=r))}
+e4 <- sum(rnbinom(n=e3,mu=62.62,size=36.17))}
 
 l[i] <- l[i-1] - (e1+e2) + e4
 m[i] <- m[i-1] + e2 - e3
