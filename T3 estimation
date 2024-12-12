@@ -39,3 +39,5 @@ grad <- (TIMES[length(TIMES)]-TIMES[1])/(eps[length(eps)]-eps[1])
 lines(c(eps[1],eps[length(eps)]),c(TIMES[1],TIMES[length(TIMES)]),type="l",lty=2)
 lines(seq(0,2*eps[t],by=0.00000001),TIMES[t]-grad*(eps[t]-seq(0,2*eps[t],by=0.00000001)),lty=2)
 symbols(eps[t],TIMES[t],circles=1,add=TRUE,inches=0.1)
+
+# for T3 we have: eps_{3}=0.00164, T_{3}=6.04
