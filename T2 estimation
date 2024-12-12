@@ -89,14 +89,13 @@ return(data.frame("L"=l,"M"=m))
 }
 }
 
-# Simulate 1000 runs using parallel::mclapply
-results <- mclapply(1:100000, MODEL.simul, mc.cores = 75)
+# Simulate 10000 runs using parallel::mclapply
+results <- mclapply(1:10000,trajectory, mc.cores = 12)
 
 # Separate L and M columns
 L_columns <- do.call(cbind, lapply(results, `[[`, "L"))
 M_columns <- do.call(cbind, lapply(results, `[[`, "M"))
 
-#
 #
 means1 <- rowMeans(L_columns)
 means2 <- rowMeans(M_columns)
@@ -104,7 +103,7 @@ var1 <- c()
 var2 <- c()
 covar <- c()
 
-for (i in 1:length(t)){
+for (i in 1:length(times)){
 print(i)
 vals1 <- as.numeric(L_columns[i,])
 vals2 <- as.numeric(M_columns[i,])
@@ -112,7 +111,7 @@ var1 <- append(var1,var(vals1))
 var2 <- append(var2,var(vals2))
 }
 
-for (i in 1:length(t)){
+for (i in 1:length(times)){
 print(i)
 covar <- append(covar,cov(as.numeric(L_columns[i,]),as.numeric(M_columns[i,])))}
 
@@ -134,3 +133,13 @@ dis <- c()
 for (i in 1:length(eps)){
 dis <- append(dis,CTimes[1]+grad*eps[i]-CTimes[i])}
 t2 <- which(dis==max(dis))
+
+plot(out1[,1],sd_over_mean_bp/frac,lwd=2,col="red",type="l",xlab="Time in Hours",ylab=expression(c[BD]/c[SDE]),main="Coefficient of Variation for BP and SDE Models",ylim=c(8,11))
+
+plot(eps,CTimes,col="red",lwd=2,type="l",xlab=expression(epsilon[2]),ylab=expression(T[2]),main="Threshold Time for Coefficient of Variation Condition")
+grad <- (CTimes[length(CTimes)]-CTimes[1])/(eps[length(eps)]-eps[1])
+lines(c(eps[1],eps[length(eps)]),c(CTimes[1],CTimes[length(CTimes)]),type="l",lty=2)
+lines(seq(0,2*eps[t2],by=0.00000001),CTimes[t2]-grad*(eps[t2]-seq(0,2*eps[t2],by=0.00000001)),lty=2)
+symbols(eps[t2],CTimes[t2],circles=1,add=TRUE,inches=0.1)
+
+# for T2 we have: eps_{4}=0.02036, T_{4}=25.60
