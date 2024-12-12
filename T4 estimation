@@ -71,3 +71,5 @@ lines(seq(0,2*eps[t],by=0.00000001),times[t]-grad*(eps[t]-seq(0,2*eps[t],by=0.00
 symbols(eps[t],times[t],circles=1,add=TRUE,inches=0.1)
 
 plot(out1[,1],sd_over_mean,xlab="Time in Hours",ylab=expression(c[2]),main="Coefficient of Variation for MTBP Model",col="red",type="l",lwd=2)
+
+# for T4 we have: eps_{4}=0.01093, T_{4}=50.08
