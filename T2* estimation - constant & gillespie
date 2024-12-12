@@ -70,4 +70,4 @@ MODEL.simul <- function(params,maxstep=10000000,count=0){
 return(unname(FPT))
 }
 
-results_gillespie <- as.data.frame(na.omit(do.call(rbind,parallel::mclapply(1:1000,MODEL.simul,mc.cores=8)),na.action="omit"))
+results_gillespie <- as.data.frame(na.omit(do.call(rbind,parallel::mclapply(1:10000,MODEL.simul,mc.cores=8)),na.action="omit"))
