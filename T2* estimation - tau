@@ -1,4 +1,4 @@
-T2 <- 50.04
+T2 <- 49.9
 
 a <- 0.089
 b <- 1.088
@@ -14,11 +14,11 @@ dy2 <- a*y[1]-h*y[2]
 list(c(dy1,dy2))
 }
 yini <- c(y1=1,y2=0)
-times <- seq(from=0,to=150,by=0.01)
+times <- seq(from=0,to=150,by=0.1)
 out1 <- ode(times=times,y=yini,func=model,parms=NULL)
 
-L2 <- out1[length(which(times<=50.04)),2]
-M2 <- out1[length(which(times<=50.04)),3]
+L2 <- out1[length(which(times<=T2)),2]
+M2 <- out1[length(which(times<=T2)),3]
 
 #################################################
 # NB Jump SDE
