@@ -15,7 +15,7 @@ list(c(dy1,dy2))
 }
 yini <- c(y1=1,y2=0)
 times <- seq(from=0,to=150,by=0.1)
-out1 <- ode(times=times,y=yini,func=model,parms=NULL)
+out1 <- deSolve::ode(times=times,y=yini,func=model,parms=NULL)
 
 L2 <- out1[length(which(times<=T2)),2]
 M2 <- out1[length(which(times<=T2)),3]
