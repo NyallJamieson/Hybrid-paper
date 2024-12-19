@@ -1,0 +1,92 @@
+#################################
+# SDE Prob Extinction
+
+######################
+# faster alternative #
+######################
+
+dt <- 0.1
+iters <- seq(1,150/dt+1,by=1)
+
+co <- matrix(c(dt,0,0,dt),nrow=2,byrow=TRUE)
+
+# Mean
+model <- function(t,y,parms){
+dy1 <- -(a+b)*y[1]+h*G*y[2]
+dy2 <- a*y[1]-h*y[2]
+list(c(dy1,dy2))
+}
+yini <- c(y1=1,y2=0)
+times <- seq(from=0,to=150,by=dt)
+out1 <- deSolve::ode(times=times,y=yini,func=model,parms=NULL)
+
+L <- out1[,2]
+M <- out1[,3]
+mu <- c(0,0)
+
+fun1 <- function(x){((a+b)*L[x]+h*(G^2*(1+1/r)+G)*M[x])*(a*L[x]+h*M[x])-(a*L[x]+h*G*M[x])^2}
+det1 <- unlist(lapply(iters,fun1))
+s <- sqrt(det1)
+fun2 <- function(x){(2*a+b)*L[x]+h*(G^2*(1+1/r)+G+1)*M[x]}
+tau <- unlist(lapply(iters,fun2))
+T <- sqrt(tau+2*s)
+funT1 <- function(x){(a*L[x]+h*M[x]+s[x])*(a*dt+b*dt-1)-a*dt*(a*L[x]+h*G*M[x])}
+funT2 <- function(x){(a*L[x]+h*G*M[x])*(a*dt+b*dt-1)-a*dt*((a+b)*L[x]+h*(G^2*(1+1/r)+G)*M[x]+s[x])}
+funT3 <- function(x){(a*L[x]+h*M[x]+s[x])*(-h*G*dt)+(h*dt-1)*(a*L[x]+h*G*M[x])}
+funT4 <- function(x){(a*L[x]+h*G*M[x])*(-h*G*dt)+(h*dt-1)*((a+b)*L[x]+h*(G^2*(1+1/r)+G)*M[x]+s[x])}
+theta1 <- unlist(lapply(iters,funT1))
+theta2 <- unlist(lapply(iters,funT2))
+theta3 <- unlist(lapply(iters,funT3))
+theta4 <- unlist(lapply(iters,funT4))
+fun3 <- function(x){((a+b)*L[x]+h*(G^2*(1+1/r)+G)*M[x]+s[x])*(a*L[x]+h*M[x]+s[x])-(a*L[x]+h*G*M[x])^2}
+det2 <- unlist(lapply(iters,fun3))
+funF1 <- function(x){T[x]*(theta1[x]*L[x]+theta3[x]*M[x])/det2[x]}
+funF2 <- function(x){T[x]*(theta2[x]*L[x]+theta4[x]*M[x])/det2[x]}
+val.1 <- unlist(lapply(iters,funF1))
+val.2 <- unlist(lapply(iters,funF2))
+funPROBS <- function(x,y){mvtnorm::pmvnorm(lower=-Inf,upper=c(x,y),mean=mu,sigma=co)[1]}
+probs <- mapply(funPROBS,val.1,val.2)
+
+# Extinction pdes
+model <- function(t,y,parms){
+dy1 <- -(a+b)*y[1]+a*y[2]+b
+dy2 <- -h*y[2]+h*(r/(m+r-y[1]*m))^(r)
+list(c(dy1,dy2))
+}
+yini <- c(y1=0,y2=0)
+times <- seq(from=0,to=150,by=dt)
+out1 <- deSolve::ode(times=times,y=yini,func=model,parms=NULL)
+
+pdf <- c(out1[1,2])
+for (i in 2:length(out1[,1])){
+pdf <- append(pdf,(out1[i,2]-out1[i-1,2])/dt)}
+
+plot(out1[2:length(pdf),1],pdf[2:length(pdf)],col="red",type="l",lwd=2,xlab="Time in Hours",ylab="Probability of Extinction",main="Probability of Extinction for BP and SDE models",xlim=c(0,20),)
+lines(out1[,1],probs,col="blue",lwd=2)
+legend("topright",legend=c(expression(q[BP]),expression(q[SDE])),lty=1,col=c("red","blue"),lwd=2)
+
+# Epsilon stuff for sde extinction
+
+eps <- seq(0.00001,0.1,by=0.00001)
+diff <- pdf-probs
+TIMES <- c()
+
+for (i in 1:length(eps)){
+TIMES <- append(TIMES,out1[1502-length(which(diff<eps[i])),1])}
+plot(eps,TIMES,col="red",lwd=2,type="l",xlab=expression(epsilon[1]),ylab=expression(T[1]),main="Threshold Time for Extinction Condition")
+
+grad <- (TIMES[length(TIMES)]-TIMES[1])/(eps[length(eps)]-eps[1])
+dis <- c()
+for (i in 1:length(eps)){
+dis <- append(dis,TIMES[1]+grad*eps[i]-TIMES[i])}
+t <- which(dis==max(dis))
+
+lines(c(eps[1],eps[length(eps)]),c(TIMES[1],TIMES[length(TIMES)]),type="l",lty=2)
+lines(seq(0,2*eps[t],by=0.00000001),TIMES[t]-grad*(eps[t]-seq(0,2*eps[t],by=0.00000001)),lty=2)
+symbols(eps[t],TIMES[t],circles=1,add=TRUE,inches=0.1)
+
+
+TIMES[t]
+
+plot(eps,dis,xlab="Epsilon",ylab="Distance between Time and Tangent",main="Elbow Finding Procedure",type="l",col="red",lwd=2)
+symbols(8.722e-05,37.1271,circles=1,add=TRUE,inches=0.1)
