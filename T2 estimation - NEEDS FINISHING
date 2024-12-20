@@ -23,8 +23,8 @@ dy2 <- a*y[1]-h*y[2]
 list(c(dy1,dy2))
 }
 yini <- c(y1=1,y2=0)
-times <- seq(from=0,to=150,by=0.01)
-out1 <- ode(times=times,y=yini,func=model,parms=NULL)
+times <- seq(from=0,to=150,by=0.1)
+out1 <- deSolve::ode(times=times,y=yini,func=model,parms=NULL)
 total_pop_mean <- out1[,2]+out1[,3]
 
 # Variance
@@ -39,9 +39,9 @@ dy7 <- a*y[5]-(g+h)*y[7]+h*G*y[8] - B3*(exp(t*A1)+exp(t*A2))/(4*theta) - h*G*(B1
 dy8 <- a*(y[6]+y[7])-2*h*y[8] + B3*(exp(t*A1)+exp(t*A2))/(4*theta) + h*(B1*exp(t*A2)-B2*exp(t*A1))/(2*theta)
 list(c(dy1,dy2,dy3,dy4,dy5,dy6,dy7,dy8))
 }
-times <- seq(from=0,to=150,by=0.01)
+times <- seq(from=0,to=150,by=0.1)
 yini <- c(y1=0,y2=0,y3=0,y4=0,y5=0,y6=0,y7=0,y8=0)
-out2 <- ode(times=times,y=yini,func=model,parms=NULL)
+out2 <- deSolve::ode(times=times,y=yini,func=model,parms=NULL)
 total_pop_var <- out2[,2]+out2[,3]+out2[,4]+out2[,5]
 
 sd_over_mean_bp <- total_pop_var^0.5/total_pop_mean
@@ -50,11 +50,14 @@ sd_over_mean_bp <- total_pop_var^0.5/total_pop_mean
 ####################################################################
 # Coefficient of Variation for BP
 
+dt <- 0.1
+t <- seq(0,150,by=dt)
+
 trajectory <- function(y){
 repeat {
 # Simulate feller simplified (allen only)
 # conditioned on not going extinct
-dt <- 0.01
+dt <- 0.1
 t <- seq(0,150,by=dt)
 l <- rep(0,length(t))
 m <- rep(0,length(t))
@@ -89,8 +92,8 @@ return(data.frame("L"=l,"M"=m))
 }
 }
 
-# Simulate 10000 runs using parallel::mclapply
-results <- mclapply(1:1000,trajectory, mc.cores = 12)
+# Simulate 100000 runs using parallel::mclapply
+results <- parallel::mclapply(1:100000,trajectory, mc.cores = 12)
 
 # Separate L and M columns
 L_columns <- do.call(cbind, lapply(results, `[[`, "L"))
@@ -103,7 +106,7 @@ var1 <- c()
 var2 <- c()
 covar <- c()
 
-for (i in 1:length(times)){
+for (i in 1:length(t)){
 print(i)
 vals1 <- as.numeric(L_columns[i,])
 vals2 <- as.numeric(M_columns[i,])
@@ -134,12 +137,12 @@ for (i in 1:length(eps)){
 dis <- append(dis,CTimes[1]+grad*eps[i]-CTimes[i])}
 t2 <- which(dis==max(dis))
 
-plot(out1[,1],sd_over_mean_bp/frac,lwd=2,col="red",type="l",xlab="Time in Hours",ylab=expression(c[BD]/c[SDE]),main="Coefficient of Variation for BP and SDE Models",ylim=c(8,13))
+plot(out1[,1],sd_over_mean_bp/frac,lwd=2,col="red",type="l",xlab="Time in hours",ylab=expression(c[BD]/c[SDE]),main="Ratio of coefficient of variation for BP and SDE models",ylim=c(6,11))
 
-plot(eps,CTimes,col="red",lwd=2,type="l",xlab=expression(epsilon[2]),ylab=expression(T[2]),main="Threshold Time for Coefficient of Variation Condition")
+plot(eps,CTimes,col="red",lwd=2,type="l",xlab=expression(epsilon[2]),ylab=expression(T[2]),main="Threshold time for coefficient of variation condition")
 grad <- (CTimes[length(CTimes)]-CTimes[1])/(eps[length(eps)]-eps[1])
 lines(c(eps[1],eps[length(eps)]),c(CTimes[1],CTimes[length(CTimes)]),type="l",lty=2)
 lines(seq(0,2*eps[t2],by=0.00000001),CTimes[t2]-grad*(eps[t2]-seq(0,2*eps[t2],by=0.00000001)),lty=2)
 symbols(eps[t2],CTimes[t2],circles=1,add=TRUE,inches=0.1)
 
-# for T2 we have: eps_{4}=0.02036, T_{4}=25.60
+# for T2 we have: eps_{4}=0.00386, T_{4}=24.9
