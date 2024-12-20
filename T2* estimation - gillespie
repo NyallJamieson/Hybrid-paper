@@ -72,4 +72,4 @@ return(unname(FPT))
 
 results_gillespie <- as.data.frame(na.omit(do.call(rbind,parallel::mclapply(1:10000,MODEL.simul,mc.cores=8)),na.action="omit"))
 
-write.csv(times2,"T2_gill.csv")
+write.csv(results_gillespie,"T2_gill.csv")
