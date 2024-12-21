@@ -1,41 +1,43 @@
+####################################################################
+# Extinction G NB
+model <- function(t,y,parms){
 a <- 0.089
 b <- 1.088
 h <- 0.041
 m <- 62.792
 G <- m
-r <- 36.072
- 
-# Extinction G NB
-model <- function(t,y,parms){
+r <- 32.072
 dy1 <- -(a+b)*y[1]+a*y[2]+b
 dy2 <- -h*y[2]+h*(r/(m+r-y[1]*m))^(r)
 list(c(dy1,dy2))
 }
 yini <- c(y1=0,y2=0)
-times <- seq(from=0,to=150,by=0.01)
+times <- seq(from=0,to=150,by=0.1)
 out1 <- deSolve::ode(times=times,y=yini,func=model,parms=NULL)
-plot(out1[,1],out1[,2],type="l",col="red",xlim=c(0,20),lwd=2,xlab="Time in Hours",ylab=expression(q),main="Extinction Probability of MTBP starting with 1 Legionella",ylim=c(0,1))
  
-###
-T3_varying <- c()
-
+plot(out1[,1],out1[,2],xlim=c(0,20),ylim=c(0,1),xlab="Time in Hours",ylab="Probability of Extinction",main="Extinction Probability with varying deposited dose",type="l",lwd=2)
+ics <- c(5,10,15,20,25,30,35)
+for (i in 1:7){
+lines(out1[,1],out1[,2]^ics[i],col=i+1,lwd=2)}
+# legend needed
+ 
+TIMES <- c()
 for (n in 1:250){
 print(n)
-
-prob <- out1[,2]^n
-
 eps <- seq(0.00001,0.1,by=0.00001)
-TIMES <- c()
+OUT1 <- out1[,2]^n
+times <- c()
  
 for (i in 1:length(eps)){
-TIMES <- append(TIMES,out1[length(which(prob<prob[1501]-eps[i])),1])}
-grad <- (TIMES[length(TIMES)]-TIMES[1])/(eps[length(eps)]-eps[1])
+times <- append(times,out1[length(which(OUT1<OUT1[1501]-eps[i])),1])}
+ 
+eps <- eps[1:length(times)]
+grad <- (times[length(times)]-times[1])/(eps[length(eps)]-eps[1])
 dis <- c()
+ 
 for (i in 1:length(eps)){
-dis <- append(dis,TIMES[1]+grad*eps[i]-TIMES[i])}
-t <- which(dis==max(dis))
+dis <- append(dis,times[1]+grad*eps[i]-times[i])}
+ 
+TIMES <- append(TIMES,times[which(dis==max(dis))])}
 
-T3_varying <- append(T3_varying,TIMES[t])
-}
-
-plot(seq(1,150,by=1),T3_varying,xlab="Deposited dose",ylab=expression(T[3]),col="red",type="l",lwd=3,main=expression(T[3]~" estimate for varying deposited dose")
+plot(seq(1,250,by=1),TIMES,col="red",type="l",lwd=2,xlab="Deposited Dose",ylab=expression("T"[3]),main=expression("T"[3]~"Central Estimate for Varying Deposited Doses"))
