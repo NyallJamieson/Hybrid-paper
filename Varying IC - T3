@@ -40,4 +40,4 @@ dis <- append(dis,times[1]+grad*eps[i]-times[i])}
  
 TIMES <- append(TIMES,times[which(dis==max(dis))])}
 
-plot(seq(1,100,by=1),TIMES,col="red",type="l",lwd=2,xlab="Deposited Dose",ylab=expression("T"[3]),main=expression("T"[3]~"Central Estimate for Varying Deposited Doses"))
+plot(seq(1,100,by=1),TIMES,col="red",type="l",lwd=2,xlab="Deposited dose",ylab=expression("T"[3]),main=expression("T"[3]~"Central estimate for varying deposited doses"))
