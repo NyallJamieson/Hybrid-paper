@@ -64,6 +64,6 @@ dis <- c()
 for (i in 1:length(eps)){
 dis <- append(dis,times[1]+grad*eps[i]-times[i])}
  
-TIMES <- append(TIMES,times[which(dis==max(dis))])}
+TIMES <- append(TIMES,times[which(dis==max(na.omit(dis)))])}
  
 plot(seq(1,100,by=1),TIMES,type="l",lwd=2,col="red",xlab="Deposited dose",ylab=expression("T"[4]),main=expression("T"[4]~"central estimate for Varying deposited doses")
