@@ -64,13 +64,13 @@ for (i in 1:length(eps)){
 dis <- append(dis,times[1]+grad*eps[i]-times[i])}
 t <- which(dis==max(dis))
 
-plot(eps,times,col="red",lwd=2,type="l",xlab=expression(epsilon[4]),ylab=expression(T[4]),main="Threshold Time for Coefficient of Variation Condition")
+plot(eps,times,col="red",lwd=2,type="l",xlab=expression(epsilon[4]),ylab=expression(T[4]),main="Threshold time for coefficient of variation condition")
 grad <- (times[length(times)]-times[1])/(eps[length(eps)]-eps[1])
 lines(c(eps[1],eps[length(eps)]),c(times[1],times[length(times)]),type="l",lty=2)
 lines(seq(0,2*eps[t],by=0.00000001),times[t]-grad*(eps[t]-seq(0,2*eps[t],by=0.00000001)),lty=2)
 symbols(eps[t],times[t],circles=1,add=TRUE,inches=0.1)
 
-plot(out1[,1],sd_over_mean,xlab="Time in Hours",ylab=expression(c[2]),main="Coefficient of Variation for MTBP Model",col="red",type="l",lwd=2)
+plot(out1[,1],sd_over_mean,xlab="Time in hours",ylab=expression(c[2]),main="Coefficient of variation for MTBP model",col="red",type="l",lwd=2)
 
 eps[t]
 times[t]
