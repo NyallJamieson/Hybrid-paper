@@ -19,7 +19,7 @@ list(c(dy1,dy2))
 yini <- c(y1=0,y2=0)
 times <- seq(from=0,to=150,by=0.1)
 out1 <- deSolve::ode(times=times,y=yini,func=model,parms=NULL)
-plot(out1[,1],out1[,2],type="l",col="red",xlim=c(0,10),lwd=2,xlab="Time in Hours",ylab=expression(q),main="Extinction Probability of MTBP starting with 1 Legionella",ylim=c(0,1))
+plot(out1[,1],out1[,2],type="l",col="red",xlim=c(0,10),lwd=2,xlab="Time in hours",ylab=expression(q),main="Extinction probability of MTBP starting with 1 Legionella",ylim=c(0,1))
 
 ###
 
@@ -30,7 +30,7 @@ for (i in 1:length(eps)){
 print(i)
 TIMES <- append(TIMES,out1[length(which(out1[,2]<out1[1501,2]-eps[i])),1])}
 
-plot(eps,TIMES,col="red",lwd=2,type="l",xlab=expression(epsilon[3]),ylab=expression(T[3]),main="Threshold Time for Extinction Condition")
+plot(eps,TIMES,col="red",lwd=2,type="l",xlab=expression(epsilon[3]),ylab=expression(T[3]),main="Threshold time for extinction condition")
 grad <- (TIMES[length(TIMES)]-TIMES[1])/(eps[length(eps)]-eps[1])
 dis <- c()
 for (i in 1:length(eps)){
