@@ -19,7 +19,7 @@ list(c(dy1,dy2))
 yini <- c(y1=0,y2=0)
 times <- seq(from=0,to=150,by=0.1)
 out1 <- deSolve::ode(times=times,y=yini,func=model,parms=NULL)
-plot(out1[,1],out1[,2],type="l",col="red",xlim=c(0,20),lwd=2,xlab="Time in Hours",ylab=expression(q),main="Extinction Probability of MTBP starting with 1 Legionella",ylim=c(0,1))
+plot(out1[,1],out1[,2],type="l",col="red",xlim=c(0,10),lwd=2,xlab="Time in Hours",ylab=expression(q),main="Extinction Probability of MTBP starting with 1 Legionella",ylim=c(0,1))
 
 ###
 
