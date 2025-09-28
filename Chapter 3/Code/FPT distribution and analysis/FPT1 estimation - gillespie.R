@@ -1,0 +1,76 @@
+# Set initial parameter values
+
+T2 <- 45.1
+a <- 0.089
+b <- 1.088
+h <- 0.041
+m <- 62.792
+G <- m
+r <- 32.072
+
+# Mean
+model <- function(t,y,parms){
+dy1 <- -(a+b)*y[1]+h*G*y[2]
+dy2 <- a*y[1]-h*y[2]
+list(c(dy1,dy2))
+}
+yini <- c(y1=1,y2=0)
+times <- seq(from=0,to=150,by=0.1)
+out1 <- deSolve::ode(times=times,y=yini,func=model,parms=NULL)
+
+L2 <- out1[length(which(times<=T2)),2]
+M2 <- out1[length(which(times<=T2)),3]
+
+# T2* Simulation
+MODEL.onestep <- function(x,params){
+             L <- x[2]
+             M <- x[3]
+               alpha <- params["alpha"]
+               beta <- params["beta"]
+               lambda <- params["lambda"]
+               rates <- c(
+                              sphago <- alpha*L,
+                              fphago <- beta*L,
+                              burst <- lambda*M
+               )
+               total.rates <- sum(rates)
+               if (total.rates==0)
+                              tau <- -Inf
+               else
+                              tau <- rexp(n=1,rate=total.rates)
+               transitions <- list(
+                              successfulPHA <- c(-1,1),
+                              failedPHA <- c(-1,0),
+                              bursted <- c(rnbinom(n=1,mu=G,size=r),-1)
+               )
+               event <- sample.int(n=3,size=1,prob=rates/total.rates)
+               x+c(tau,transitions[[event]])
+}
+
+MODEL.simul <- function(params,maxstep=10000000,count=0){
+      params <- c(alpha=0.089,beta=1.088,lambda=0.041)
+      FPT <- c()
+      while (count<1){
+      x <- xstart <- c(time=0,L=1,M=0)
+        output <- array(dim=c(maxstep+1,3))
+        colnames(output) <- names(x)
+        output[1,] <- x
+      k <- 1
+        while ((k <= maxstep) && (x["L"] > 0 | x["M"] > 0) && ((x["L"] < L2) || (x["M"] < M2))){
+                k <- k+1
+                output[k,] <- x <- MODEL.onestep(x,params)}
+      t <- output[k,1]
+      if (x["L"]!=0){
+            FPT <- append(FPT,t)
+            count <- count + 1
+            print(FPT)}
+      print(count)
+}
+return(unname(FPT))
+}
+
+# Object simulation results
+results_gillespie <- as.data.frame(na.omit(do.call(rbind,parallel::mclapply(1:10000,MODEL.simul,mc.cores=5)),na.action="omit"))
+
+# Now save
+write.csv(results_gillespie,"~/PhD-work/Chapter 3/Data/FPT dataset for distribution/T1_gill.csv")

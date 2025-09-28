@@ -1,0 +1,58 @@
+a <- 0.089
+b <- 1.088
+h <- 0.041
+m <- 62.792
+G <- m
+r <- 32.072
+
+# Extinction G NB
+model <- function(t,y,parms){
+a <- 0.089
+b <- 1.088
+h <- 0.041
+m <- 62.792
+r <- 32.07
+dy1 <- -(a+b)*y[1]+a*y[2]+b
+dy2 <- -h*y[2]+h*(r/(m+r-y[1]*m))^(r)
+list(c(dy1,dy2))
+}
+yini <- c(y1=0,y2=0)
+times <- seq(from=0,to=150,by=0.1)
+out1 <- deSolve::ode(times=times,y=yini,func=model,parms=NULL)
+plot(out1[,1],out1[,2],type="l",col="red",xlim=c(0,10),lwd=2,xlab="Time in hours",ylab=expression(q[BP]),main="Extinction probability of MTBP",ylim=c(0,1))
+
+eps <- seq(0.00001,0.1,by=0.00001)
+TIMES <- c()
+
+for (i in 1:length(eps)){
+print(i)
+TIMES <- append(TIMES,out1[length(which(out1[,2]<out1[1501,2]-eps[i])),1])}
+
+plot(eps,TIMES,col="red",lwd=2,type="l",xlab=expression(epsilon[3]),ylab=expression(T[3]),main="Threshold time for extinction condition")
+grad <- (TIMES[length(TIMES)]-TIMES[1])/(eps[length(eps)]-eps[1])
+dis <- c()
+for (i in 1:length(eps)){
+dis <- append(dis,TIMES[1]+grad*eps[i]-TIMES[i])}
+t <- which(dis==max(dis))
+lines(c(eps[1],eps[length(eps)]),c(TIMES[1],TIMES[length(TIMES)]),type="l",lty=2)
+lines(seq(0,2*eps[t],by=0.00000001),TIMES[t]-grad*(eps[t]-seq(0,2*eps[t],by=0.00000001)),lty=2)
+symbols(eps[t],TIMES[t],circles=1,add=TRUE,inches=0.1)
+
+eps[t]
+TIMES[t]
+# for T3 we have: eps_{3}=0.0016, T_{3}=6.0
+
+# Save plot with 600 DPI resolution
+tiff("Fig3.3.tiff", width = 8, height = 6, units = "in", res = 600, compression = "lzw")
+
+# Increase font size globally
+par(cex.lab = 2,   # Axis labels font size (1.5x default size)
+    cex.main = 2,  # Title font size
+    cex.axis = 1.2,  # Axis tick label font size
+    mar = c(5, 5, 4, 2) + 0.1)  # Adjust margins (optional for better space)
+
+# Produce plot
+plot(out1[,1],out1[,2],type="l",col="red",xlim=c(0,10),lwd=2,xlab="Time in hours",ylab=expression(q[BP]),main="Extinction probability of MTBP",ylim=c(0,1))
+
+# Close the device
+dev.off()
