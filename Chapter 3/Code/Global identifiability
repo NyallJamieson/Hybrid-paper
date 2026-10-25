@@ -1,0 +1,712 @@
+rm(list = ls())
+set.seed(20260802)
+
+out_dir <- "identifiability_results"
+if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+
+# Number of parameter sets.
+# Start with 250-500 for testing; use 1000+ for final results.
+n_parameter_sets <- 500
+
+# Stochastic replicates per parameter set.
+# Start with 100; use 500-1000 for more stable manuscript results.
+n_replicates <- 250
+
+# Initial extracellular Legionella.
+initial_dose <- 1
+
+# Simulation limits.
+t_max <- 500
+max_events <- 1e7
+
+# State-space thresholds from the manuscript.
+L_sde_switch <- 49.13
+M_sde_switch <- 25.01
+
+L_ode_switch <- 92.14
+M_ode_switch <- 46.91
+
+# Illness-associated extracellular Legionella threshold.
+LT <- 50661
+
+# Minimum number of successful trajectories required before a
+# conditional-time summary is reported for a parameter set.
+min_successes_for_time_summary <- 10
+
+# Number of bootstrap resamples for uncertainty intervals on PRCC.
+# Set to 0 for a faster exploratory run.
+n_prcc_boot <- 500
+
+parameter_bounds <- data.frame(
+  parameter = c("alpha", "beta", "lambda", "G", "r"),
+  lower = c(0.009, 0.113, 0.039, 38.618, 32.072 / 2),
+  upper = c(0.242, 2.563, 0.042, 90.412, 32.072 * 2),
+  baseline = c(0.089, 1.088, 0.041, 62.792, 32.072),
+  stringsAsFactors = FALSE
+)
+
+write.csv(
+  parameter_bounds,
+  file.path(out_dir, "parameter_bounds.csv"),
+  row.names = FALSE
+)
+
+latin_hypercube <- function(n, d) {
+  out <- matrix(NA_real_, nrow = n, ncol = d)
+
+  for (j in seq_len(d)) {
+    # One sample from each equally sized interval, randomly permuted.
+    points <- ((seq_len(n) - 1) + runif(n)) / n
+    out[, j] <- sample(points, size = n, replace = FALSE)
+  }
+
+  out
+}
+
+scale_to_bounds <- function(u, lower, upper) {
+  lower + u * (upper - lower)
+}
+
+lhs_unit <- latin_hypercube(
+  n = n_parameter_sets,
+  d = nrow(parameter_bounds)
+)
+
+parameter_sets <- as.data.frame(lhs_unit)
+names(parameter_sets) <- parameter_bounds$parameter
+
+for (j in seq_len(nrow(parameter_bounds))) {
+  nm <- parameter_bounds$parameter[j]
+  parameter_sets[[nm]] <- scale_to_bounds(
+    parameter_sets[[nm]],
+    parameter_bounds$lower[j],
+    parameter_bounds$upper[j]
+  )
+}
+
+parameter_sets$parameter_set <- seq_len(n_parameter_sets)
+parameter_sets <- parameter_sets[
+  c("parameter_set", parameter_bounds$parameter)
+]
+
+write.csv(
+  parameter_sets,
+  file.path(out_dir, "sampled_parameter_sets.csv"),
+  row.names = FALSE
+)
+
+simulate_mtbp_thresholds <- function(
+    dose,
+    alpha,
+    beta,
+    lambda,
+    G,
+    r,
+    t_max = 500,
+    max_events = 1e7
+) {
+  time <- 0
+  L <- dose
+  M <- 0
+
+  time_sde <- NA_real_
+  time_ode <- NA_real_
+  time_ill <- NA_real_
+
+  for (event_i in seq_len(max_events)) {
+
+    # Record first passage to each state-space threshold.
+    if (is.na(time_sde) &&
+        L >= L_sde_switch &&
+        M >= M_sde_switch) {
+      time_sde <- time
+    }
+
+    if (is.na(time_ode) &&
+        L >= L_ode_switch &&
+        M >= M_ode_switch) {
+      time_ode <- time
+    }
+
+    if (L >= LT) {
+      time_ill <- time
+      return(list(
+        status = "LT",
+        time_sde = time_sde,
+        time_ode = time_ode,
+        time_ill = time_ill,
+        final_L = L,
+        final_M = M,
+        events = event_i
+      ))
+    }
+
+    if (L <= 0 && M <= 0) {
+      return(list(
+        status = "extinct",
+        time_sde = time_sde,
+        time_ode = time_ode,
+        time_ill = NA_real_,
+        final_L = L,
+        final_M = M,
+        events = event_i
+      ))
+    }
+
+    if (time >= t_max) {
+      return(list(
+        status = "max_time",
+        time_sde = time_sde,
+        time_ode = time_ode,
+        time_ill = NA_real_,
+        final_L = L,
+        final_M = M,
+        events = event_i
+      ))
+    }
+
+    rates <- c(
+      successful_phagocytosis = alpha * L,
+      failed_phagocytosis = beta * L,
+      rupture = lambda * M
+    )
+
+    total_rate <- sum(rates)
+
+    if (!is.finite(total_rate) || total_rate <= 0) {
+      return(list(
+        status = "extinct",
+        time_sde = time_sde,
+        time_ode = time_ode,
+        time_ill = NA_real_,
+        final_L = L,
+        final_M = M,
+        events = event_i
+      ))
+    }
+
+    time <- time + rexp(1, rate = total_rate)
+    event <- sample.int(3, size = 1, prob = rates / total_rate)
+
+    if (event == 1) {
+      L <- L - 1
+      M <- M + 1
+    } else if (event == 2) {
+      L <- L - 1
+    } else {
+      released <- rnbinom(1, mu = G, size = r)
+      L <- L + released
+      M <- M - 1
+    }
+
+    L <- max(L, 0)
+    M <- max(M, 0)
+  }
+
+  list(
+    status = "max_events",
+    time_sde = time_sde,
+    time_ode = time_ode,
+    time_ill = NA_real_,
+    final_L = L,
+    final_M = M,
+    events = max_events
+  )
+}
+
+safe_mean <- function(x) {
+  if (sum(is.finite(x)) == 0) return(NA_real_)
+  mean(x[is.finite(x)])
+}
+
+safe_median <- function(x) {
+  if (sum(is.finite(x)) == 0) return(NA_real_)
+  median(x[is.finite(x)])
+}
+
+safe_sd <- function(x) {
+  if (sum(is.finite(x)) <= 1) return(NA_real_)
+  sd(x[is.finite(x)])
+}
+
+safe_quantile <- function(x, p) {
+  if (sum(is.finite(x)) == 0) return(NA_real_)
+  unname(quantile(x[is.finite(x)], probs = p, names = FALSE))
+}
+
+summarise_time <- function(x, prefix, min_n = 10) {
+  ok <- is.finite(x)
+  n_ok <- sum(ok)
+
+  values <- c(
+    n = n_ok,
+    probability = mean(ok),
+    mean_hours = if (n_ok >= min_n) safe_mean(x) else NA_real_,
+    median_hours = if (n_ok >= min_n) safe_median(x) else NA_real_,
+    sd_hours = if (n_ok >= min_n) safe_sd(x) else NA_real_,
+    q025_hours = if (n_ok >= min_n) safe_quantile(x, 0.025) else NA_real_,
+    q975_hours = if (n_ok >= min_n) safe_quantile(x, 0.975) else NA_real_
+  )
+
+  names(values) <- paste0(prefix, "_", names(values))
+  values
+}
+
+summary_rows <- vector("list", n_parameter_sets)
+raw_rows <- vector("list", n_parameter_sets)
+
+start_all <- proc.time()[["elapsed"]]
+
+for (i in seq_len(n_parameter_sets)) {
+  pars <- parameter_sets[i, ]
+
+  cat(
+    sprintf(
+      "Parameter set %d/%d: alpha=%.4f beta=%.4f lambda=%.4f G=%.2f r=%.2f\n",
+      i, n_parameter_sets,
+      pars$alpha, pars$beta, pars$lambda, pars$G, pars$r
+    )
+  )
+
+  time_sde <- rep(NA_real_, n_replicates)
+  time_ode <- rep(NA_real_, n_replicates)
+  time_ill <- rep(NA_real_, n_replicates)
+  status <- rep(NA_character_, n_replicates)
+  events <- rep(NA_real_, n_replicates)
+
+  set_start <- proc.time()[["elapsed"]]
+
+  for (rep_i in seq_len(n_replicates)) {
+    sim <- simulate_mtbp_thresholds(
+      dose = initial_dose,
+      alpha = pars$alpha,
+      beta = pars$beta,
+      lambda = pars$lambda,
+      G = pars$G,
+      r = pars$r,
+      t_max = t_max,
+      max_events = max_events
+    )
+
+    time_sde[rep_i] <- sim$time_sde
+    time_ode[rep_i] <- sim$time_ode
+    time_ill[rep_i] <- sim$time_ill
+    status[rep_i] <- sim$status
+    events[rep_i] <- sim$events
+  }
+
+  elapsed <- proc.time()[["elapsed"]] - set_start
+
+  raw_rows[[i]] <- data.frame(
+    parameter_set = pars$parameter_set,
+    replicate = seq_len(n_replicates),
+    alpha = pars$alpha,
+    beta = pars$beta,
+    lambda = pars$lambda,
+    G = pars$G,
+    r = pars$r,
+    status = status,
+    time_sde_hours = time_sde,
+    time_ode_hours = time_ode,
+    time_ill_hours = time_ill,
+    events = events,
+    stringsAsFactors = FALSE
+  )
+
+  summary_rows[[i]] <- data.frame(
+    parameter_set = pars$parameter_set,
+    alpha = pars$alpha,
+    beta = pars$beta,
+    lambda = pars$lambda,
+    G = pars$G,
+    r = pars$r,
+    as.list(summarise_time(
+      time_sde,
+      prefix = "T_SDE",
+      min_n = min_successes_for_time_summary
+    )),
+    as.list(summarise_time(
+      time_ode,
+      prefix = "T_ODE",
+      min_n = min_successes_for_time_summary
+    )),
+    as.list(summarise_time(
+      time_ill,
+      prefix = "T_ill",
+      min_n = min_successes_for_time_summary
+    )),
+    extinction_probability = mean(status == "extinct"),
+    max_time_probability = mean(status == "max_time"),
+    mean_events = mean(events),
+    runtime_seconds = elapsed,
+    stringsAsFactors = FALSE
+  )
+}
+
+raw_results <- do.call(rbind, raw_rows)
+parameter_summary <- do.call(rbind, summary_rows)
+
+write.csv(
+  raw_results,
+  file.path(out_dir, "raw_simulation_results.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  parameter_summary,
+  file.path(out_dir, "parameter_set_output_summary.csv"),
+  row.names = FALSE
+)
+
+total_runtime <- proc.time()[["elapsed"]] - start_all
+
+# PRCC is calculated by:
+#   1. rank-transforming every parameter and outcome;
+#   2. regressing the selected parameter on all other parameters;
+#   3. regressing the outcome on all other parameters;
+#   4. correlating the two sets of residuals.
+#
+# A large absolute PRCC means that a parameter has a strong
+# monotonic association with the outcome after controlling for
+# the other sampled parameters.
+
+prcc_one <- function(data, outcome, parameter, all_parameters) {
+  needed <- c(outcome, all_parameters)
+  dd <- data[complete.cases(data[, needed]), needed, drop = FALSE]
+
+  if (nrow(dd) < length(all_parameters) + 10) {
+    return(c(prcc = NA_real_, p_value = NA_real_, n = nrow(dd)))
+  }
+
+  ranked <- as.data.frame(lapply(dd, rank, ties.method = "average"))
+
+  others <- setdiff(all_parameters, parameter)
+
+  if (length(others) == 0) {
+    test <- cor.test(
+      ranked[[parameter]],
+      ranked[[outcome]],
+      method = "pearson"
+    )
+    return(c(
+      prcc = unname(test$estimate),
+      p_value = test$p.value,
+      n = nrow(ranked)
+    ))
+  }
+
+  x_formula <- reformulate(others, response = parameter)
+  y_formula <- reformulate(others, response = outcome)
+
+  x_resid <- residuals(lm(x_formula, data = ranked))
+  y_resid <- residuals(lm(y_formula, data = ranked))
+
+  test <- cor.test(x_resid, y_resid, method = "pearson")
+
+  c(
+    prcc = unname(test$estimate),
+    p_value = test$p.value,
+    n = nrow(ranked)
+  )
+}
+
+bootstrap_prcc <- function(
+    data,
+    outcome,
+    parameter,
+    all_parameters,
+    B = 500
+) {
+  needed <- c(outcome, all_parameters)
+  dd <- data[complete.cases(data[, needed]), , drop = FALSE]
+
+  if (B <= 0 || nrow(dd) < length(all_parameters) + 10) {
+    return(c(ci_lower = NA_real_, ci_upper = NA_real_))
+  }
+
+  vals <- rep(NA_real_, B)
+
+  for (b in seq_len(B)) {
+    idx <- sample.int(nrow(dd), nrow(dd), replace = TRUE)
+    vals[b] <- prcc_one(
+      dd[idx, , drop = FALSE],
+      outcome,
+      parameter,
+      all_parameters
+    )[["prcc"]]
+  }
+
+  c(
+    ci_lower = unname(quantile(vals, 0.025, na.rm = TRUE)),
+    ci_upper = unname(quantile(vals, 0.975, na.rm = TRUE))
+  )
+}
+
+parameters <- parameter_bounds$parameter
+
+# Outcomes chosen to separate:
+#   - conditional timing among trajectories reaching a threshold;
+#   - probability of reaching the threshold.
+outcomes <- c(
+  "T_SDE_median_hours",
+  "T_ODE_median_hours",
+  "T_ill_median_hours",
+  "T_SDE_probability",
+  "T_ODE_probability",
+  "T_ill_probability"
+)
+
+prcc_rows <- list()
+k <- 1
+
+for (outcome in outcomes) {
+  for (parameter in parameters) {
+    est <- prcc_one(
+      parameter_summary,
+      outcome = outcome,
+      parameter = parameter,
+      all_parameters = parameters
+    )
+
+    ci <- bootstrap_prcc(
+      parameter_summary,
+      outcome = outcome,
+      parameter = parameter,
+      all_parameters = parameters,
+      B = n_prcc_boot
+    )
+
+    prcc_rows[[k]] <- data.frame(
+      outcome = outcome,
+      parameter = parameter,
+      prcc = est[["prcc"]],
+      p_value = est[["p_value"]],
+      n_parameter_sets_used = est[["n"]],
+      ci_lower = ci[["ci_lower"]],
+      ci_upper = ci[["ci_upper"]],
+      stringsAsFactors = FALSE
+    )
+
+    k <- k + 1
+  }
+}
+
+prcc_results <- do.call(rbind, prcc_rows)
+
+# Benjamini-Hochberg correction within each outcome.
+prcc_results$p_adjusted_BH <- ave(
+  prcc_results$p_value,
+  prcc_results$outcome,
+  FUN = function(x) p.adjust(x, method = "BH")
+)
+
+prcc_results$absolute_prcc <- abs(prcc_results$prcc)
+prcc_results <- prcc_results[
+  order(prcc_results$outcome, -prcc_results$absolute_prcc),
+]
+
+write.csv(
+  prcc_results,
+  file.path(out_dir, "prcc_results.csv"),
+  row.names = FALSE
+)
+
+standardised_regression <- function(data, outcome, parameters) {
+  dd <- data[complete.cases(data[, c(outcome, parameters)]), , drop = FALSE]
+
+  if (nrow(dd) < length(parameters) + 10) {
+    return(NULL)
+  }
+
+  zdata <- as.data.frame(scale(dd[, c(outcome, parameters)]))
+  fit <- lm(reformulate(parameters, response = outcome), data = zdata)
+  sm <- summary(fit)
+
+  coef_table <- as.data.frame(sm$coefficients)
+  coef_table$term <- rownames(coef_table)
+  rownames(coef_table) <- NULL
+  names(coef_table)[1:4] <- c(
+    "standardised_coefficient",
+    "standard_error",
+    "t_value",
+    "p_value"
+  )
+
+  coef_table$outcome <- outcome
+  coef_table$r_squared <- sm$r.squared
+  coef_table$adjusted_r_squared <- sm$adj.r.squared
+  coef_table$n_parameter_sets_used <- nrow(dd)
+
+  coef_table[
+    coef_table$term != "(Intercept)",
+    c(
+      "outcome",
+      "term",
+      "standardised_coefficient",
+      "standard_error",
+      "t_value",
+      "p_value",
+      "r_squared",
+      "adjusted_r_squared",
+      "n_parameter_sets_used"
+    )
+  ]
+}
+
+regression_rows <- lapply(
+  outcomes,
+  function(outcome) {
+    standardised_regression(
+      parameter_summary,
+      outcome = outcome,
+      parameters = parameters
+    )
+  }
+)
+
+regression_rows <- regression_rows[!vapply(regression_rows, is.null, logical(1))]
+regression_results <- do.call(rbind, regression_rows)
+
+if (!is.null(regression_results) && nrow(regression_results) > 0) {
+  regression_results$p_adjusted_BH <- ave(
+    regression_results$p_value,
+    regression_results$outcome,
+    FUN = function(x) p.adjust(x, method = "BH")
+  )
+
+  write.csv(
+    regression_results,
+    file.path(out_dir, "standardised_regression_results.csv"),
+    row.names = FALSE
+  )
+}
+
+variance_decomposition_one <- function(raw_data, time_column) {
+  split_times <- split(
+    raw_data[[time_column]],
+    raw_data$parameter_set
+  )
+
+  set_means <- vapply(split_times, safe_mean, numeric(1))
+  set_variances <- vapply(split_times, function(x) {
+    x <- x[is.finite(x)]
+    if (length(x) <= 1) return(NA_real_)
+    var(x)
+  }, numeric(1))
+
+  between_parameter_variance <- var(set_means, na.rm = TRUE)
+  mean_within_parameter_variance <- mean(set_variances, na.rm = TRUE)
+  total_descriptive_variance <-
+    between_parameter_variance + mean_within_parameter_variance
+
+  data.frame(
+    outcome = time_column,
+    between_parameter_variance = between_parameter_variance,
+    mean_within_parameter_stochastic_variance =
+      mean_within_parameter_variance,
+    stochastic_fraction = mean_within_parameter_variance /
+      total_descriptive_variance,
+    parameter_fraction = between_parameter_variance /
+      total_descriptive_variance
+  )
+}
+
+variance_decomposition <- do.call(
+  rbind,
+  lapply(
+    c("time_sde_hours", "time_ode_hours", "time_ill_hours"),
+    function(x) variance_decomposition_one(raw_results, x)
+  )
+)
+
+write.csv(
+  variance_decomposition,
+  file.path(out_dir, "variance_decomposition.csv"),
+  row.names = FALSE
+)
+
+# PRCC plot
+pdf(
+  file.path(out_dir, "prcc_plots.pdf"),
+  width = 10,
+  height = 7
+)
+
+old_par <- par(no.readonly = TRUE)
+par(mfrow = c(2, 3), mar = c(8, 4, 3, 1))
+
+for (outcome in outcomes) {
+  dd <- prcc_results[prcc_results$outcome == outcome, ]
+  dd <- dd[order(dd$prcc), ]
+
+  bp <- barplot(
+    dd$prcc,
+    names.arg = dd$parameter,
+    las = 2,
+    ylim = c(-1, 1),
+    ylab = "Partial rank correlation",
+    main = outcome
+  )
+
+  abline(h = 0, lty = 2)
+
+  if (all(is.finite(dd$ci_lower)) && all(is.finite(dd$ci_upper))) {
+    arrows(
+      x0 = bp,
+      y0 = dd$ci_lower,
+      x1 = bp,
+      y1 = dd$ci_upper,
+      angle = 90,
+      code = 3,
+      length = 0.04
+    )
+  }
+}
+
+par(old_par)
+dev.off()
+
+# Scatter plots of parameter values against median outputs.
+pdf(
+  file.path(out_dir, "parameter_output_scatterplots.pdf"),
+  width = 11,
+  height = 8
+)
+
+for (outcome in c(
+  "T_SDE_median_hours",
+  "T_ODE_median_hours",
+  "T_ill_median_hours"
+)) {
+  par(mfrow = c(2, 3), mar = c(4, 4, 3, 1))
+
+  for (parameter in parameters) {
+    plot(
+      parameter_summary[[parameter]],
+      parameter_summary[[outcome]],
+      xlab = parameter,
+      ylab = outcome,
+      main = paste(outcome, "vs", parameter),
+      pch = 19
+    )
+
+    if (sum(complete.cases(
+      parameter_summary[[parameter]],
+      parameter_summary[[outcome]]
+    )) > 2) {
+      lines(
+        lowess(
+          parameter_summary[[parameter]],
+          parameter_summary[[outcome]]
+        ),
+        lwd = 2
+      )
+    }
+  }
+
+  plot.new()
+  title(main = paste("Outcome:", outcome))
+}
+
+par(old_par)
+dev.off()
