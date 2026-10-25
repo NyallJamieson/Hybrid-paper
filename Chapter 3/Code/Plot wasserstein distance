@@ -1,0 +1,112 @@
+# Install once if needed
+install.packages(c("ggplot2", "patchwork"))
+
+library(ggplot2)
+library(patchwork)
+
+# Read your files
+error <- read.csv("distribution_error_summary.csv")
+timing <- read.csv("timing_summary.csv")
+
+# Model ordering
+models <- c(
+  "MTBP reference",
+  "MTBP-to-ODE hybrid",
+  "MTBP-to-SDE-to-ODE hybrid",
+  "SDE-only",
+  "ODE-only"
+)
+
+error$model <- factor(error$model, levels = models)
+timing$model <- factor(timing$model, levels = models)
+
+# Consistent colours
+cols <- c(
+  "MTBP reference" = "black",
+  "MTBP-to-ODE hybrid" = "#0072B2",
+  "MTBP-to-SDE-to-ODE hybrid" = "#009E73",
+  "SDE-only" = "#D55E00",
+  "ODE-only" = "#CC79A7"
+)
+
+# Panel A: Distribution error
+p1 <- ggplot(
+  error,
+  aes(
+    x = dose,
+    y = wasserstein_days,
+    colour = model,
+    group = model
+  )
+) +
+  geom_line(linewidth = 0.9) +
+  geom_point(size = 2.7) +
+  scale_x_log10(breaks = c(1, 5, 10, 50, 100)) +
+  scale_colour_manual(values = cols, drop = FALSE) +
+  labs(
+    title = "A. Distributional accuracy",
+    x = "Initial dose",
+    y = "Wasserstein distance (days)",
+    colour = "Model"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
+  )
+
+# Panel B: Computation time
+p2 <- ggplot(
+  timing,
+  aes(
+    x = dose,
+    y = seconds_per_success,
+    colour = model,
+    group = model
+  )
+) +
+  geom_line(linewidth = 0.9) +
+  geom_point(size = 2.7) +
+  scale_x_log10(breaks = c(1, 5, 10, 50, 100)) +
+  scale_y_log10() +
+  scale_colour_manual(values = cols, drop = FALSE) +
+  labs(
+    title = "B. Computational efficiency",
+    x = "Initial dose",
+    y = "Seconds per successful simulation (log scale)",
+    colour = "Model"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
+  )
+
+# Combine both panels
+fig8 <- (p1 | p2) +
+  plot_layout(guides = "collect") +
+  plot_annotation(
+    title = "Figure 8. Accuracy and computational efficiency"
+  ) &
+  theme(legend.position = "bottom")
+
+# Display
+print(fig8)
+
+# Save high-resolution image
+ggsave(
+  "Figure_8.png",
+  plot = fig8,
+  width = 12,
+  height = 5.5,
+  dpi = 300,
+  bg = "white"
+)
+
+# Save vector PDF
+ggsave(
+  "Figure_8.pdf",
+  plot = fig8,
+  width = 12,
+  height = 5.5
+)
