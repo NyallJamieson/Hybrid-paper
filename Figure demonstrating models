@@ -118,6 +118,7 @@ while (length(trial)<2000){
     trial <- append(trial, t[length(which(A<50661))+1])
   }
 }
+times_sde <- trial
 
 ker_ctmc <- density(times_ctmc)
 ker_sde <- density(times_sde,"bw"=1.5)
